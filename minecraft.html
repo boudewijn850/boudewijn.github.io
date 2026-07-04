@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Neon Runner</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #0ff; font-size: 24px; text-shadow: 0 0 10px #0ff; }
+        #instructions { position: absolute; bottom: 20px; width: 100%; text-align: center; color: white; opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <div id="ui">Score: 0</div>
+    <div id="instructions">Gebruik de PIJLTOETSEN of A/D om te bewegen</div>
+
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+
+        // --- SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000000, 10, 50);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- LICHT ---
+        const ambientLight = new THREE.AmbientLight(0x404040); 
+        scene.add(ambientLight);
+        const light = new THREE.PointLight(0x00ffff, 1, 100);
+        light.position.set(0, 5, 5);
+        scene.add(light);
+
+        // --- PLAYER ---
+        const playerGeo = new THREE.BoxGeometry(1, 1, 1);
+        const playerMat = new THREE.MeshPhongMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5 });
+        const player = new THREE.Mesh(playerGeo, playerMat);
+        player.position.y = 0.5;
+        scene.add(player);
+
+        // --- VLOER (De weg) ---
+        const floorGeo = new THREE.PlaneGeometry(10, 1000);
+        const floorMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // Grid helpers voor dat "Tron" gevoel
+        const grid = new THREE.GridHelper(100, 20, 0x00ffff, 0x444444);
+        grid.position.y = 0.05;
+        scene.add(grid);
+
+        camera.position.set(0, 3, 7);
+        camera.lookAt(player.position);
+
+        // --- OBSTAKELS ---
+        const obstacles = [];
+        function spawnObstacle() {
+            const size = Math.random() * 1.5 + 0.5;
+            const geo = new THREE.BoxGeometry(size, size, size);
+            const mat = new THREE.MeshPhongMaterial({ color: 0xff0055, emissive: 0xff0055 });
+            const obs = new THREE.Mesh(geo, mat);
+            obs.position.x = (Math.random() - 0.5) * 8;
+            obs.position.z = -50;
+            obs.position.y = size / 2;
+            scene.add(obs);
+            obstacles.push(obs);
+        }
+
+        // --- CONTROLS ---
+        let moveLeft = false, moveRight = false;
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') moveRight = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') moveLeft = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') moveRight = false;
+        });
+
+        // --- GAME LOOP ---
+        let score = 0;
+        let speed = 0.2;
+        let frame = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            frame++;
+
+            // Moeilijkheidsgraad verhogen
+            speed += 0.0001;
+
+            // Speler bewegen
+            if (moveLeft && player.position.x > -4.5) player.position.x -= 0.15;
+            if (moveRight && player.position.x < 4.5) player.position.x += 0.15;
+
+            // Grid animeren voor snelheidseffect
+            grid.position.z += speed;
+            if (grid.position.z > 5) grid.position.z = 0;
+
+            // Obstakels spawnen
+            if (frame % Math.floor(60 / (speed * 5)) === 0) spawnObstacle();
+
+            // Obstakels bewegen en collision check
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].position.z += speed;
+
+                // Collision detection (simpele bounding box)
+                const distance = player.position.distanceTo(obstacles[i].position);
+                if (distance < 1.2) {
+                    alert("Game Over! Score: " + Math.floor(score));
+                    location.reload();
+                }
+
+                // Verwijder gepasseerde objecten
+                if (obstacles[i].position.z > 10) {
+                    scene.remove(obstacles[i]);
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    document.getElementById('ui').innerText = "Score: " + score;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Resize afhandelen
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
